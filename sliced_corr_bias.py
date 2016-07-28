@@ -2,6 +2,7 @@ import numpy as N
 import scipy.interpolate as I
 import scipy.integrate as INT
 import matplotlib.pyplot as plt
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 def xilin_from_pklin(r, pklin=None, smw=3.0, L=20000, upper=4*N.pi, lower=10**-3):
     k=pklin[:,0]
@@ -55,14 +56,14 @@ def dahdam(dm, b, alpha, epsilon, rhoe):
 # does the inverse transform of delta_h = g(delta_m)
 # so this returns delta_m = g^-1(delta_h)
 # it does this using interpolation
-def delta_m(dh, b, alpha, epsilon, rhoe):
+def delta_m(dh, bias_func, b, args):
     dm2=N.arange(-1.0, 5*dh.max(), 0.01)
     
-    dh2=delta_h(dm2, b, alpha, epsilon, rhoe)
+    dh2=bias_func(dm2, b, *args)
     i=1
     while (dh2.max()<dh.max()):
         dm2=N.arange(-1.0, (5+i)*dh.max(), 0.01)
-        dh2=delta_h(dm2,b, alpha, epsilon, rhoe)
+        dh2=bias_func(dm2, b, *args)
         i=i+1
     
     
@@ -105,7 +106,7 @@ def gauss(x1, mu, sigma):
 # bins='log' returns xi(r, delta) using logarithmic binning in delta
 # otherwise it returns it in linear delta bins
 # returns the halo density (or log density if bins='log') and the sliced correlation function
-def compute_xird(dh0, xilin, sigma, alpha=1.0, epsilon=1.5, rhoe=0.2, bins='log'):
+def compute_xird(dh0, xilin, sigma, bias_func, args, bins='log'):
     mu=-sigma**2/2.0
     
     amin=-5*sigma
@@ -117,21 +118,28 @@ def compute_xird(dh0, xilin, sigma, alpha=1.0, epsilon=1.5, rhoe=0.2, bins='log'
     fg=gauss(a0, mu, sigma)
     
     rhom=N.exp(a0)
-    dh=delta_h(rhom-1.0, 1.0, alpha, epsilon, rhoe)
+    dh=bias_func(rhom-1, 1.0, *args)
     mean=N.sum(fg*(1+dh)*da)
     b=1.0/mean
     
     xird=N.zeros((dh0.size, xilin.size), dtype=N.float)
-    
-    dm0=delta_m(dh0, b, alpha, epsilon, rhoe)
+    dm0=delta_m(dh0, bias_func, b, args)
     aa0=N.log(1+dm0)
     
+    ah0=N.log(1+dh0)
+    return ah0, aa0
+    print b
+    
     if (bins=='log'):
-        factor=1.0/dahdam(dm0,b, alpha, epsilon, rhoe)
+        dmt=dm0[:-1]+N.diff(dm0)/2.0
+        dahdam=InterpolatedUnivariateSpline(dmt, N.diff(ah0)/N.diff(aa0), k=1)
+        factor=1.0/dahdam(dm0)
     else:
-        factor=(1.0)/(1.0+dm0)*1.0/dhdm(dm0,b, alpha, epsilon, rhoe)
+        dmt=dm0[:-1]+N.diff(dm0)/2.0
+        dhdm=InterpolatedUnivariateSpline(dmt, N.diff(dh0)/N.diff(dm0), k=1)
+        factor=(1.0)/(1.0+dm0)*1.0/dhdm(dm0)
     
-    
+    return dm0, dahdam(dm0)
     for i in N.arange(dh0.size):
         for j in N.arange(xilin.size):
             xird[i, j]=INT.quad(integrand, amin, amax, args=(aa0[i], xilin[j], sigma, b, alpha, epsilon, rhoe, mu))[0]
