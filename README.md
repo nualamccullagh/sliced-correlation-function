@@ -4,6 +4,8 @@ The 2-point correlation function of matter measures how clustered matter is as a
 This Python code can be used to model and plot the sliced correlation function. Two different models are considered for the matter density field: Gaussian and lognormal. An option for modelling galaxy bias is also included.
 
 Files:
+
 -sliced_corr_bias.py: Main code to compute the sliced correlation function for a given input power spectrum and given bias parameters.
+
 -sliced_corr_plots.py: Shows how to run the code for both the Gaussian and lognormal models.
 
